@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 
+import json
 import optparse
 
 from twisted.internet import reactor
@@ -10,46 +12,7 @@ from il2ds_middleware.parser import ConsoleParser, DeviceLinkParser
 from il2ds_middleware.protocol import ConsoleClientFactory, DeviceLinkClient
 from il2ds_middleware import service
 
-from constants import SERVER_STATE
-
-
-class HeightmapCreatorClient(LineOnlyReceiver):
-
-    def connectionMade(self):
-        state = self.factory.connect(self)
-        self.sendLine(state.value)
-        if state == SERVER_STATE.BUSY:
-            self.transport.loseConnection()
-            return
-        self.factory.client = self
-        #TODO:
-
-    def connectionLost(self, reason):
-        self.factory.disconnect(self)
-
-    def lineReceived(self, line):
-        print line
-
-
-class HeightmapCreatorClient(ServerFactory):
-
-    protocol = HeightmapCreatorClient
-
-    def __init__(self, dlink, console):
-        self.dlink = dlink
-        self.console = console
-        self.state = SERVER_STATE.READY
-
-    def connect(self, client):
-        result = self.state
-        if self.state == SERVER_STATE.READY:
-            self.state = SERVER_STATE.BUSY
-            client.console, client.dlink = self.console, self.dlink
-        return result
-
-    def disconnect(self, client):
-        self.state = SERVER_STATE.READY
-        client.console, client.dlink = None, None
+from constants import SERVER_STATE, MAP_SCALE, MAX_HEIGHT, RESPONSE
 
 
 def parse_args():
@@ -75,19 +38,79 @@ def parse_args():
     return options
 
 
+class HeightmapCreatorClient(LineOnlyReceiver):
+
+    peer = None
+
+    def connectionMade(self):
+        end_point = self.transport.getPeer()
+        peer = "{:}:{:}".format(end_point.host, end_point.port)
+        print("Connection from %s... " % peer, end='')
+        state = self.factory.connect(self)
+        self.sendLine(state.value)
+        if state == SERVER_STATE.BUSY:
+            self.transport.loseConnection()
+            print("rejected.")
+            return
+        self.peer = peer
+        print("accepted.")
+
+    def connectionLost(self, reason):
+        if self.peer is not None:
+            peer, self.peer = self.peer, None
+            print("Connection with %s was closed." % peer)
+        self.factory.disconnect(self)
+
+    def lineReceived(self, line):
+        #data = json.loads(line)
+        data = {
+            'samples': [2, ]*1000,
+            'min_value': 0,
+            'max_value': 2,
+        }
+        self.sendLine(json.dumps(data))
+        self.sendLine(json.dumps(data))
+        data = {
+            'response': RESPONSE.DONE.value,
+        }
+        self.sendLine(json.dumps(data))
+        self.transport.loseConnection()
+
+
+class HeightmapCreatorClient(ServerFactory):
+
+    protocol = HeightmapCreatorClient
+
+    def __init__(self, dlink, console):
+        self.dlink = dlink
+        self.console = console
+        self.state = SERVER_STATE.READY
+
+    def connect(self, client):
+        result = self.state
+        if self.state == SERVER_STATE.READY:
+            self.state = SERVER_STATE.BUSY
+            client.console, client.dlink = self.console, self.dlink
+        return result
+
+    def disconnect(self, client):
+        self.state = SERVER_STATE.READY
+        client.console, client.dlink = None, None
+
+
 def main():
     options = parse_args()
     dl_address = (options.dshost, options.dlport)
-    print "Trying to work with:"
-    print "Server cs_client on %s:%d." % (options.dshost, options.csport)
-    print "Device Link on %s:%d." % dl_address
+    print("Trying to work with:")
+    print("Server cs_client on %s:%d." % (options.dshost, options.csport))
+    print("Device Link on %s:%d." % dl_address)
 
     def on_start(_):
-        print "Successfully connected to game server."
+        print("Successfully connected to game server.")
         f = HeightmapCreatorClient(dl_client, cs_client)
         connector = reactor.listenTCP(options.port, f, interface=options.host)
         host = connector.getHost()
-        print "Listening clients on %s:%d." % (host.host, host.port)
+        print("Listening clients on %s:%d." % (host.host, host.port))
 
     def on_connected(client):
         cs_client = client
@@ -96,11 +119,11 @@ def main():
         return d
 
     def on_fail(err):
-        print "Failed to connect to game server: %s" % err.value
+        print("Failed to connect to game server: %s" % err.value)
         reactor.stop()
 
     def on_connection_lost(err):
-        print "Connection was lost."
+        print("Connection was lost.")
 
     p = DeviceLinkParser()
     dl_client, cs_client = DeviceLinkClient(dl_address, parser=p), None
