@@ -1,22 +1,24 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function
 
 import json
 import optparse
+import os
 
-from twisted.internet import reactor
+from twisted.internet import defer, reactor
 from twisted.internet.protocol import ServerFactory
 from twisted.protocols.basic import LineOnlyReceiver
 
-from il2ds_middleware.parser import ConsoleParser, DeviceLinkParser
+from il2ds_middleware.parser import ConsoleParser
 from il2ds_middleware.protocol import ConsoleClientFactory, DeviceLinkClient
 from il2ds_middleware import service
 
-from constants import SERVER_STATE, MAP_SCALE, MAX_HEIGHT, RESPONSE
+from constants import (SERVER_STATE, MAP_SCALE, MAX_HEIGHT, RESPONSE,
+    MAX_OBJECTS_ON_MAP, MISSION_TEMPLATE, )
+from helpers import ProgressOutputter
 
 
 def parse_args():
-    usage = """usage: %prog [--host=HOST] [--port=PORT] [--dshost=DSHOST] [--dsport=DSPORT] --log=LOG"""
+    usage = """usage: %prog [--host=HOST] [--port=PORT] [--dshost=DSHOST] [--dsport=DSPORT] --dir=DIR"""
     parser = optparse.OptionParser(usage)
 
     help = "The host to listen on. Default is localhost."
@@ -34,7 +36,12 @@ def parse_args():
     help = "The DeviceLink port to connect to. Default is 20000."
     parser.add_option('--dlport', type='int', default=10000, help=help)
 
+    help = "Path to the server's dogfight missions directory."
+    parser.add_option('--dir', help=help)
+
     options, args = parser.parse_args()
+    if options.dir is None:
+        parser.error("Path to missions directory is not set.")
     return options
 
 
@@ -45,75 +52,125 @@ class HeightmapCreatorClient(LineOnlyReceiver):
     def connectionMade(self):
         end_point = self.transport.getPeer()
         peer = "{:}:{:}".format(end_point.host, end_point.port)
-        print("Connection from %s... " % peer, end='')
-        state = self.factory.connect(self)
+        print "Connection from {:}...".format(peer),
+        state = self.factory.connect()
         self.sendLine(state.value)
         if state == SERVER_STATE.BUSY:
             self.transport.loseConnection()
-            print("rejected.")
+            print "rejected."
             return
         self.peer = peer
-        print("accepted.")
+        print "accepted."
 
     def connectionLost(self, reason):
         if self.peer is not None:
             peer, self.peer = self.peer, None
             print("Connection with %s was closed." % peer)
-        self.factory.disconnect(self)
+        self.factory.disconnect()
 
     def lineReceived(self, line):
-        #data = json.loads(line)
-        data = {
-            'samples': [2, ]*1000,
-            'min_value': 0,
-            'max_value': 2,
-        }
-        self.sendLine(json.dumps(data))
-        self.sendLine(json.dumps(data))
-        data = {
-            'response': RESPONSE.DONE.value,
-        }
+        data = json.loads(line)
+        reactor.callLater(0, self._query_range, data, MAX_OBJECTS_ON_MAP)
+
+    @defer.inlineCallbacks
+    def _query_range(self, data, step):
+        start, stop = tuple(data.pop('range'))
+        left = start
+        total = stop - start
+        progress = ProgressOutputter(total)
+
+        while left < stop:
+            if self.peer is None:
+                print "Aborted."
+                defer.returnValue(False)
+
+            right = min(left+step-1, stop)
+            progress.on_progress(right-left)
+
+            yield self._do_query(xrange(left, right+1), data)
+            left = right + 1
+
+        if left == stop:
+            yield self._do_query([left, ], data)
+            progress.on_progress(1)
+
+        progress.on_done()
+        data = { 'response': RESPONSE.DONE.value, }
         self.sendLine(json.dumps(data))
         self.transport.loseConnection()
 
+    def _do_query(self, idxs, data):
 
-class HeightmapCreatorClient(ServerFactory):
+        def on_results(results):
+            if self.peer is not None:
+                samples = [int(s[s.rfind(';')+1:]) for s in iter(results)]
+                self.sendLine(json.dumps({
+                    'samples': samples,
+                }))
+            os.remove(fpath)
+
+        mname, fpath = self._generate_mission(idxs, data)
+        return self.factory.console.mission_load(mname).addCallback(
+            lambda _: self.factory.console.mission_begin()).addCallback(
+            lambda _: self.factory.dlink.refresh_radar()).addCallback(
+            lambda _: self.factory.dlink.all_static_pos()).addCallback(
+                on_results)
+
+    def _generate_mission(self, idxs, data):
+        fname = 'heightmap.mis'
+        mname = '/'.join(['net', 'dogfight', fname])
+        fpath = os.path.join(self.factory.missions_dir, fname)
+        with open(fpath, 'w') as f:
+            f.write(MISSION_TEMPLATE.format(data['loader']))
+            w = int(data['width']/MAP_SCALE)
+            for i, idx in enumerate(idxs):
+                y, x = divmod(idx, w)
+                x *= MAP_SCALE
+                x += MAP_SCALE >> 1
+                y *= MAP_SCALE
+                y += MAP_SCALE >> 1
+                y = data['height'] - y
+                f.write("  {0}_Static vehicles.stationary.Stationary$Wagon12 2 {1} {2} 360.00 0.0\n".format(
+                    i, x, y))
+        return mname, fpath
+
+
+class HeightmapCreatorFactory(ServerFactory):
 
     protocol = HeightmapCreatorClient
 
-    def __init__(self, dlink, console):
+    def __init__(self, dlink, console, missions_dir):
         self.dlink = dlink
         self.console = console
+        self.missions_dir = missions_dir
         self.state = SERVER_STATE.READY
 
-    def connect(self, client):
+    def connect(self):
         result = self.state
         if self.state == SERVER_STATE.READY:
             self.state = SERVER_STATE.BUSY
-            client.console, client.dlink = self.console, self.dlink
         return result
 
-    def disconnect(self, client):
+    def disconnect(self):
         self.state = SERVER_STATE.READY
-        client.console, client.dlink = None, None
 
 
 def main():
     options = parse_args()
     dl_address = (options.dshost, options.dlport)
     print("Trying to work with:")
-    print("Server cs_client on %s:%d." % (options.dshost, options.csport))
+    print("Server console client on %s:%d." % (options.dshost, options.csport))
     print("Device Link on %s:%d." % dl_address)
 
     def on_start(_):
         print("Successfully connected to game server.")
-        f = HeightmapCreatorClient(dl_client, cs_client)
+        f = HeightmapCreatorFactory(clients[0], clients[1], options.dir)
         connector = reactor.listenTCP(options.port, f, interface=options.host)
         host = connector.getHost()
         print("Listening clients on %s:%d." % (host.host, host.port))
 
     def on_connected(client):
-        cs_client = client
+        clients.append(client)
         d = dl_client.on_start.addCallback(on_start)
         reactor.listenUDP(0, dl_client)
         return d
@@ -125,8 +182,8 @@ def main():
     def on_connection_lost(err):
         print("Connection was lost.")
 
-    p = DeviceLinkParser()
-    dl_client, cs_client = DeviceLinkClient(dl_address, parser=p), None
+    dl_client = DeviceLinkClient(dl_address)
+    clients = [dl_client, ]
     p = ConsoleParser(
         (service.PilotBaseService(), service.MissionBaseService()))
     f = ConsoleClientFactory(parser=p)

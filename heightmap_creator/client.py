@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function
 
 import json
 import optparse
@@ -9,7 +8,8 @@ from twisted.internet.protocol import ClientFactory
 from twisted.protocols.basic import LineOnlyReceiver
 from twisted.python.failure import Failure
 
-from constants import SERVER_STATE, MAP_SCALE, MAX_HEIGHT, RESPONSE
+from constants import SERVER_STATE, MAP_SCALE, RESPONSE
+from helpers import ProgressOutputter
 
 
 def parse_args():
@@ -95,24 +95,19 @@ class HeightmapCreatorClient(LineOnlyReceiver):
             else:
                 d.errback((data, subdata['msg']))
         else:
-            self.data['min_value'] = min(self.data['min_value'], subdata['min_value'])
-            self.data['max_value'] = max(self.data['max_value'], subdata['max_value'])
             samples = subdata['samples']
-            self.data['samples'].extend(samples)
+            self.data += samples
             self.receiver.on_progress(len(samples))
 
-    def get_chunks(self, loader, height, width, d, progress_receiver):
+    def get_chunks(self, loader, height, width, prange, d, progress_receiver):
         self.receiver = progress_receiver
         self.on_ready = d
-        self.data = {
-            'samples': [],
-            'min_value': MAX_HEIGHT,
-            'max_value': 0,
-        }
+        self.data = []
         request = {
             'loader': loader,
             'height': height,
             'width': width,
+            'range': prange,
         }
         self.sendLine(json.dumps(request))
 
@@ -142,27 +137,16 @@ class HeightmapCreatorFactory(ClientFactory):
 
 def get_chunk_indexes(height, width, num):
     total = (height/MAP_SCALE) * (width/MAP_SCALE)
+    last_id = total - 1
     step = total / float(num)
     last = 0.0
     result = []
-    while last < total:
+    while last < last_id:
         left = int(last)
-        right = min(int(last+step), total)
+        right = min(int(last+step), last_id)
         result.append((left, right))
-        last = right+1
+        last = right + 1
     return total, result
-
-
-class ProgressOutputter(object):
-
-    def __init__(self, total):
-        self.done = 0
-        self.total = total
-
-    def on_progress(self, count):
-        self.done += count
-        print("{0:.2f}%...".format(
-            (float(self.done)/self.total)*100), end='\r')
 
 
 def get_chunks(loader, height, width, clients):
@@ -171,16 +155,17 @@ def get_chunks(loader, height, width, clients):
     progress = ProgressOutputter(total)
 
     def on_all_data(results):
-        print()
-        print("{:<10}".format("Done."))
-        # TODO: return
+        progress.on_done()
+        result = []
+        for status, r in iter(results):
+            result += r
+        return result
 
-    print("Querying {0} points...".format(total))
     dl = []
     for idx, client in zip(indexes, clients):
         d = defer.Deferred()
         dl.append(d)
-        client.get_chunks(loader, height, width, d, progress)
+        client.get_chunks(loader, height, width, idx, d, progress)
 
     return defer.DeferredList(dl, consumeErrors=True).addCallback(on_all_data)
 
@@ -203,8 +188,10 @@ def main():
     print
 
     def got_result(result):
-        # TODO:
-        print(result)
+        from array import array
+        height_array = array('H', result)
+        with open(options.out, 'wb') as f:
+            height_array.tofile(f)
 
     def connections_done(results):
         clients = [client for status, client in results if status==True]

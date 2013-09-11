@@ -5,3 +5,4 @@
 #     pip install -r requirements.pip
 
 il2ds-middleware>=0.8.0
+PIL==1.1.7

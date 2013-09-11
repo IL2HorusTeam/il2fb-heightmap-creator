@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import os
+
 from twisted.python.constants import ValueConstant, Values
 
 
@@ -17,4 +19,14 @@ class RESPONSE(Values):
 MAP_SCALE = 100
 
 MAX_HEIGHT = 9000
-MAX_OBJECTS_ON_MAP = 1000
+MAX_OBJECTS_ON_MAP = 2000
+
+MISSION_TEMPLATE = """[MAIN]
+  MAP {:}
+  TIME 12.0
+  CloudType 0
+  CloudHeight 1000.0
+  army 1
+  playerNum 0
+[NStationary]
+"""
