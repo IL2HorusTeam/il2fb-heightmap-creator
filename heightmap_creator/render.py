@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from PIL import Image
+from PIL import Image, ImageFilter
 import optparse
 
 from array import array
@@ -41,7 +41,7 @@ def parse_args():
 
 class Renderer(object):
 
-    def render(self, src):
+    def render(self, src, dimentions):
         raise NotImplementedError
 
     @property
@@ -53,24 +53,27 @@ class BlackAndWhiteRenderer(Renderer):
 
     slug = "bw"
 
-    def render(self, src):
+    def render(self, src, dimentions):
 
-        def scale(elem):
-            value = int(255*(elem/vmax))
+        def get_color(v):
+            value = int(255*(v/vmax))
             return (value, )*3
 
         vmax = float(max(src))
-        return map(scale, src)
+
+        im = Image.new('RGB', dimentions)
+        im.putdata(map(get_color, src))
+        return im
 
 
 class JetGradientRenderer(Renderer):
 
     slug = "jet"
 
-    def render(self, src):
+    def render(self, src, dimentions):
 
         def get_color(v):
-            v = v/emax
+            v = v/_max
             r, g, b = (1.0, 1.0, 1.0)
             if v < vmin:
                 v = vmin
@@ -92,9 +95,12 @@ class JetGradientRenderer(Renderer):
 
         vmin = 0.0
         vmax = 1.0
-        emax = float(max(src))
+        _max = float(max(src))
         dv = vmax - vmin;
-        return map(get_color, src)
+
+        im = Image.new('RGB', dimentions)
+        im.putdata(map(get_color, src))
+        return im
 
 
 class TerraRenderer(Renderer):
@@ -103,35 +109,30 @@ class TerraRenderer(Renderer):
 
     def __init__(self):
         self.tints = [
-            (100, (31, 156, 126)),
-            (200, (126, 156, 32)),
-            (300, (238, 215, 83)),
-            (450, (242, 201, 83)),
-            (650, (245, 187, 80)),
-            (900, (226, 166, 70)),
-            (1100, (210, 146, 59)),
-            (1300, (196, 129, 48)),
-            (1500, (184, 112, 38)),
-            (1700, (180, 111, 33)),
-            (2000, (180, 104, 28)),
-            (2300, (175, 90, 23)),
-            (2600, (171, 86, 19)),
-            (2900, (166, 83, 15)),
-            (3200, (160, 79, 13)),
-            (3500, (156, 75, 10)),
-            (3800, (151, 71, 8)),
-            (4100, (151, 71, 0)),
-        ]
+            '3b8513', '7e9c20', 'ead94b', 'f2c953', 'eebe5c', 'f5bb50',
+            'd2923b', 'c48130', 'c18433', 'b87026', 'b46f21', 'b4681c',
+            'af5a17', 'ab5613', 'a6530f', 'a04f0d', '9c4b0a', '974708',
+            '974700', ]
 
-    def render(self, src):
+    def render(self, src, dimentions):
+        import struct
+
+        _max = max(src)
+        step = int(float(_max-50)/(len(self.tints)-1))
+        colors = zip(range(50, _max, step), self.tints)
+
+        def color(v):
+            return struct.unpack('BBB', v.decode('hex'))
 
         def get_color(v):
-            for limit, color in self.tints:
+            for limit, c in colors:
                 if v < limit:
-                    return color
-            return self.tints[-1][1]
+                    return color(c)
+            return color(colors[-1][1])
 
-        return map(get_color, src)
+        im = Image.new('RGB', dimentions)
+        im.putdata(map(get_color, src))
+        return im.filter(ImageFilter.DETAIL)
 
 
 def main():
@@ -142,8 +143,7 @@ def main():
     renders = [
         BlackAndWhiteRenderer(), JetGradientRenderer(), TerraRenderer(), ]
     for r in renders:
-        im = Image.new('RGB', dimentions)
-        im.putdata(r.render(src))
+        im = r.render(src, dimentions)
         im.show()
         dpath = "{:}.{:}.png".format(spath, r.slug)
         im.save(dpath)
