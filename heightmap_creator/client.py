@@ -13,7 +13,7 @@ from helpers import ProgressOutputter
 
 
 def parse_args():
-    usage = """usage: %prog --map=MAP --height=HEIGHT --width=WIDTH [hostname]:port ..."""
+    usage = """usage: %prog --loader=LOADER --height=HEIGHT --width=WIDTH [hostname]:port ..."""
     parser = optparse.OptionParser(usage)
 
     help = "Map loader, e.g. \"Hawaii/load.ini\"."
