@@ -2,6 +2,7 @@
 
 import json
 import optparse
+import os
 
 from twisted.internet import defer, reactor
 from twisted.internet.protocol import ClientFactory
@@ -10,6 +11,7 @@ from twisted.python.failure import Failure
 
 from constants import SERVER_STATE, MAP_SCALE, RESPONSE
 from helpers import ProgressOutputter
+from render import render
 
 
 def parse_args():
@@ -180,9 +182,9 @@ def connect(host, port):
 def main():
     options, addresses = parse_args()
     map_name = options.loader.split('/', 1)[0]
-    options.out = options.out or map_name
+    out_path = os.path.join(options.out, map_name)
     print("Querying map {:}.".format(map_name))
-    print("Putting result to '{:}'.".format(options.out))
+    print("Putting results to '{:}'.".format(options.out))
     print("Using servers: {:}.".format(
         ', '.join(["%s:%d" % x for x in addresses])))
     print
@@ -190,8 +192,9 @@ def main():
     def got_result(result):
         from array import array
         height_array = array('H', result)
-        with open(options.out, 'wb') as f:
+        with open(out_path, 'wb') as f:
             height_array.tofile(f)
+        render(height_array, out_path, (options.height, options.width))
 
     def connections_done(results):
         clients = [client for status, client in results if status==True]

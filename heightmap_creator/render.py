@@ -36,7 +36,7 @@ def parse_args():
     if options.width % MAP_SCALE != 0:
         parser.error("Map width is not proportional to %s." % MAP_SCALE)
 
-    return options.src, (options.height/MAP_SCALE, options.width/MAP_SCALE)
+    return options.src, (options.height, options.width)
 
 
 class Renderer(object):
@@ -135,18 +135,24 @@ class TerraRenderer(Renderer):
         return im.filter(ImageFilter.DETAIL)
 
 
+def render(src, dst_path, dimentions):
+    h, w = dimentions
+    h /= MAP_SCALE
+    w /= MAP_SCALE
+    renders = [
+        BlackAndWhiteRenderer(), JetGradientRenderer(), TerraRenderer(), ]
+    for r in renders:
+        im = r.render(src, (w, h))
+        dpath = "{:}.{:}.png".format(dst_path, r.slug)
+        im.save(dpath)
+
+
 def main():
     spath, dimentions = parse_args()
     src = array('H')
     with open(spath, 'r') as f:
         src.fromstring(f.read())
-    renders = [
-        BlackAndWhiteRenderer(), JetGradientRenderer(), TerraRenderer(), ]
-    for r in renders:
-        im = r.render(src, dimentions)
-        im.show()
-        dpath = "{:}.{:}.png".format(spath, r.slug)
-        im.save(dpath)
+    render(src, spath, dimentions)
 
 
 if __name__ == '__main__':
