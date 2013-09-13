@@ -9,7 +9,7 @@ from twisted.internet.protocol import ClientFactory
 from twisted.protocols.basic import LineOnlyReceiver
 from twisted.python.failure import Failure
 
-from constants import SERVER_STATE, MAP_SCALE, RESPONSE
+from constants import SERVER_STATE, MAP_SCALE, RESPONSE, MAX_TCP_BUFFER_SIZE
 from helpers import ProgressOutputter
 from render import render
 
@@ -63,6 +63,7 @@ def parse_args():
 class HeightmapCreatorClient(LineOnlyReceiver):
 
     flag = False
+    MAX_LENGTH = MAX_TCP_BUFFER_SIZE
 
     def connectionMade(self):
         self.lineReceived = self.initialLineReceived
@@ -96,10 +97,10 @@ class HeightmapCreatorClient(LineOnlyReceiver):
                 d.callback(data)
             else:
                 d.errback((data, subdata['msg']))
-        else:
-            samples = subdata['samples']
-            self.data += samples
-            self.receiver.on_progress(len(samples))
+        elif 'chunk' in subdata:
+            self.data += subdata['chunk']
+        elif 'processed' in subdata:
+            self.receiver.on_progress(subdata['processed'])
 
     def get_chunks(self, loader, height, width, prange, d, progress_receiver):
         self.receiver = progress_receiver

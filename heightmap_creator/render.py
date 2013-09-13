@@ -105,7 +105,7 @@ class JetGradientRenderer(Renderer):
 
 class TerraRenderer(Renderer):
 
-    slug = "terra"
+    slug = "hypsometric"
 
     def __init__(self):
         self.tints = [

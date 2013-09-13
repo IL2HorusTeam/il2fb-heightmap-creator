@@ -13,12 +13,13 @@ from il2ds_middleware.protocol import ConsoleClientFactory, DeviceLinkClient
 from il2ds_middleware import service
 
 from constants import (SERVER_STATE, MAP_SCALE, MAX_HEIGHT, RESPONSE,
-    MAX_OBJECTS_ON_MAP, MISSION_TEMPLATE, )
+    MAX_OBJECTS_ON_MAP, MISSION_TEMPLATE, DS_CONSOLE_TIMEOUT,
+    MAX_TCP_BUFFER_SIZE, )
 from helpers import ProgressOutputter
 
 
 def parse_args():
-    usage = """usage: %prog [--host=HOST] [--port=PORT] [--dshost=DSHOST] [--dsport=DSPORT] --dir=DIR"""
+    usage = """usage: %prog [--host=HOST] [--port=PORT] [--dshost=DSHOST] [--csport=CSPORT] [--dlport=DLPORT] --dir=DIR"""
     parser = optparse.OptionParser(usage)
 
     help = "The host to listen on. Default is localhost."
@@ -48,6 +49,7 @@ def parse_args():
 class HeightmapCreatorClient(LineOnlyReceiver):
 
     peer = None
+    MAX_LENGTH = MAX_TCP_BUFFER_SIZE
 
     def connectionMade(self):
         end_point = self.transport.getPeer()
@@ -78,6 +80,7 @@ class HeightmapCreatorClient(LineOnlyReceiver):
         left = start
         total = stop - start
         progress = ProgressOutputter(total)
+        self.chunks = []
 
         while left < stop:
             if self.peer is None:
@@ -85,9 +88,8 @@ class HeightmapCreatorClient(LineOnlyReceiver):
                 defer.returnValue(False)
 
             right = min(left+step-1, stop)
-            progress.on_progress(right-left)
-
             yield self._do_query(xrange(left, right+1), data)
+            progress.on_progress(right-left)
             left = right + 1
 
         if left == stop:
@@ -95,6 +97,10 @@ class HeightmapCreatorClient(LineOnlyReceiver):
             progress.on_progress(1)
 
         progress.on_done()
+        for chunk in self.chunks:
+            data = { 'chunk': chunk, }
+            self.sendLine(json.dumps(data))
+        self.chunks = None
         data = { 'response': RESPONSE.DONE.value, }
         self.sendLine(json.dumps(data))
         self.transport.loseConnection()
@@ -104,8 +110,9 @@ class HeightmapCreatorClient(LineOnlyReceiver):
         def on_results(results):
             if self.peer is not None:
                 samples = [int(s[s.rfind(';')+1:]) for s in iter(results)]
+                self.chunks.append(samples)
                 self.sendLine(json.dumps({
-                    'samples': samples,
+                    'processed': len(samples),
                 }))
             os.remove(fpath)
 
@@ -186,7 +193,7 @@ def main():
     clients = [dl_client, ]
     p = ConsoleParser(
         (service.PilotBaseService(), service.MissionBaseService()))
-    f = ConsoleClientFactory(parser=p)
+    f = ConsoleClientFactory(parser=p, timeout_value=DS_CONSOLE_TIMEOUT)
     f.on_connecting.addCallbacks(on_connected, on_fail)
     f.on_connection_lost.addErrback(on_connection_lost)
     reactor.connectTCP(options.dshost, options.csport, f)
