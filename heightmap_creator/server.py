@@ -13,7 +13,7 @@ from il2ds_middleware.protocol import ConsoleClientFactory, DeviceLinkClient
 from il2ds_middleware import service
 
 from constants import (SERVER_STATE, MAP_SCALE, MAX_HEIGHT, RESPONSE,
-    MAX_OBJECTS_ON_MAP, MISSION_TEMPLATE, DS_CONSOLE_TIMEOUT,
+    MAX_OBJECTS_ON_MAP, MISSION_TEMPLATE, DS_CONSOLE_TIMEOUT, DL_TIMEOUT,
     MAX_TCP_BUFFER_SIZE, )
 from helpers import ProgressOutputter
 
@@ -189,7 +189,7 @@ def main():
     def on_connection_lost(err):
         print("Connection was lost.")
 
-    dl_client = DeviceLinkClient(dl_address)
+    dl_client = DeviceLinkClient(dl_address, timeout_value=DL_TIMEOUT)
     clients = [dl_client, ]
     p = ConsoleParser(
         (service.PilotBaseService(), service.MissionBaseService()))
