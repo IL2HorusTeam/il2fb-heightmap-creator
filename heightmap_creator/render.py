@@ -55,8 +55,9 @@ def render(src, dst_path, dimentions, isostep=400, dpi=48):
         ('jet', 'jet'),
     ]
     data = np.array(src).reshape((h, w))[::-1]
-    size = (float(h)/dpi, float(w)/dpi)
+    size = (float(w)/dpi, float(h)/dpi)
     isolevels = [_ for _ in range(0, MAX_HEIGHT, isostep)]
+
 
     for cmap_name, slug in cmap_names:
         plt.clf()
@@ -64,8 +65,8 @@ def render(src, dst_path, dimentions, isostep=400, dpi=48):
         fig.add_axes([0, 0, 1, 1])
 
         contourf(data, 256, cmap=get_cmap(cmap_name))
-        C = contour(data, isolevels, colors='black', linewidth=.2)
-        clabel(C, inline=True, fontsize=11)
+        C = contour(data, isolevels, colors='#303030', linewidth=.2)
+        clabel(C, inline=True, fontsize=12, fmt = '%d')
         plt.axis('off')
         dpath = "{:}.{:}.png".format(dst_path, slug)
         plt.savefig(dpath, bbox_inches=0, dpi=dpi)
