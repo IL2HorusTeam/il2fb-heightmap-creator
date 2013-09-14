@@ -18,7 +18,7 @@ class RESPONSE(Values):
 # 1:MAP_SCALE tells what distanse is represented in one pixel in on dimention
 MAP_SCALE = 100
 
-MAX_HEIGHT = 9000
+MAX_HEIGHT = 8516 # mount Everest
 MAX_OBJECTS_ON_MAP = 10000
 MAX_TCP_BUFFER_SIZE = 900000
 

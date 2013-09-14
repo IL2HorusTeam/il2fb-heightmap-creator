@@ -1,11 +1,18 @@
 # -*- coding: utf-8 -*-
 
-from PIL import Image, ImageFilter
 import optparse
 
 from array import array
+from matplotlib.cm import get_cmap
+from matplotlib.colors import Normalize
 
-from constants import MAP_SCALE
+import matplotlib.pyplot as plt
+import numpy as np
+
+from PIL import Image, ImageFilter
+from pylab import contour, contourf, savefig, cm, clabel, figure
+
+from constants import MAP_SCALE, MAX_HEIGHT
 
 
 def parse_args():
@@ -39,112 +46,30 @@ def parse_args():
     return options.src, (options.height, options.width)
 
 
-class Renderer(object):
-
-    def render(self, src, dimentions):
-        raise NotImplementedError
-
-    @property
-    def slug(self):
-        raise NotImplementedError
-
-
-class BlackAndWhiteRenderer(Renderer):
-
-    slug = "bw"
-
-    def render(self, src, dimentions):
-
-        def get_color(v):
-            value = int(255*(v/vmax))
-            return (value, )*3
-
-        vmax = float(max(src))
-
-        im = Image.new('RGB', dimentions)
-        im.putdata(map(get_color, src))
-        return im
-
-
-class JetGradientRenderer(Renderer):
-
-    slug = "jet"
-
-    def render(self, src, dimentions):
-
-        def get_color(v):
-            v = v/_max
-            r, g, b = (1.0, 1.0, 1.0)
-            if v < vmin:
-                v = vmin
-            if v > vmax:
-                v = vmax
-            if v < vmin + 0.25 * dv:
-                r = 0;
-                g = 4 * (v - vmin) / dv;
-            elif v < vmin + 0.5 * dv:
-                r = 0;
-                b = 1 + 4 * (vmin + 0.25 * dv - v) / dv;
-            elif v < vmin + 0.75 * dv:
-                r = 4 * (v - vmin - 0.5 * dv) / dv;
-                b = 0;
-            else:
-                g = 1 + 4 * (vmin + 0.75 * dv - v) / dv;
-                b = 0;
-            return (int(r*255), int(g*255), int(b*255))
-
-        vmin = 0.0
-        vmax = 1.0
-        _max = float(max(src))
-        dv = vmax - vmin;
-
-        im = Image.new('RGB', dimentions)
-        im.putdata(map(get_color, src))
-        return im
-
-
-class TerraRenderer(Renderer):
-
-    slug = "hypsometric"
-
-    def __init__(self):
-        self.tints = [
-            '3b8513', '7e9c20', 'ead94b', 'f2c953', 'eebe5c', 'f5bb50',
-            'd2923b', 'c48130', 'c18433', 'b87026', 'b46f21', 'b4681c',
-            'af5a17', 'ab5613', 'a6530f', 'a04f0d', '9c4b0a', '974708',
-            '974700', ]
-
-    def render(self, src, dimentions):
-        import struct
-
-        _max = max(src)
-        step = int(float(_max-50)/(len(self.tints)-1))
-        colors = zip(range(50, _max, step), self.tints)
-
-        def color(v):
-            return struct.unpack('BBB', v.decode('hex'))
-
-        def get_color(v):
-            for limit, c in colors:
-                if v < limit:
-                    return color(c)
-            return color(colors[-1][1])
-
-        im = Image.new('RGB', dimentions)
-        im.putdata(map(get_color, src))
-        return im.filter(ImageFilter.DETAIL)
-
-
-def render(src, dst_path, dimentions):
+def render(src, dst_path, dimentions, isostep=400, dpi=48):
     h, w = dimentions
     h /= MAP_SCALE
     w /= MAP_SCALE
-    renders = [
-        BlackAndWhiteRenderer(), JetGradientRenderer(), TerraRenderer(), ]
-    for r in renders:
-        im = r.render(src, (w, h))
-        dpath = "{:}.{:}.png".format(dst_path, r.slug)
-        im.save(dpath)
+    cmap_names = [
+        ('RdYlGn_r', 'terrain'),
+        ('jet', 'jet'),
+    ]
+    data = np.array(src).reshape((h, w))[::-1]
+    size = (float(h)/dpi, float(w)/dpi)
+    isolevels = [_ for _ in range(0, MAX_HEIGHT, isostep)]
+
+    for cmap_name, slug in cmap_names:
+        plt.clf()
+        fig = plt.figure(figsize=size, frameon=False)
+        fig.add_axes([0, 0, 1, 1])
+
+        contourf(data, 256, cmap=get_cmap(cmap_name))
+        C = contour(data, isolevels, colors='black', linewidth=.2)
+        clabel(C, inline=True, fontsize=11)
+        plt.axis('off')
+        dpath = "{:}.{:}.png".format(dst_path, slug)
+        plt.savefig(dpath, bbox_inches=0, dpi=dpi)
+        print "'{:}' saved.".format(slug)
 
 
 def main():
