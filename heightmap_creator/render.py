@@ -58,7 +58,6 @@ def render(src, dst_path, dimentions, isostep=400, dpi=48):
     size = (float(w)/dpi, float(h)/dpi)
     isolevels = [_ for _ in range(0, MAX_HEIGHT, isostep)]
 
-
     for cmap_name, slug in cmap_names:
         plt.clf()
         fig = plt.figure(figsize=size, frameon=False)
