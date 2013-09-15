@@ -10,7 +10,7 @@ from PIL import Image, ImageEnhance
 
 
 def parse_args():
-    usage = """usage: %prog --dir=SRC"""
+    usage = """usage: %prog --dir=DIR"""
     parser = optparse.OptionParser(usage)
 
     help = "Path to the map directory."
@@ -122,8 +122,6 @@ def main():
                 group_num += 1
 
     d = [clear_color, ]*h*w
-    # for i in xrange(h):
-    #         d[i*w + 3] = fill_color
     for g in groups:
         if len(g) < 50:
             continue
