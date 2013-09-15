@@ -45,7 +45,7 @@ def add_mask(im, mark, opacity=1):
         im = im.convert('RGBA')
     # create a transparent layer the size of the image and draw the
     # watermark in that layer.
-    layer = Image.new('RGBA', im.size, (0,0,0,0))
+    layer = Image.new('RGBA', im.size, (0, 0, 0, 0))
 
     for y in range(0, im.size[1], mark.size[1]):
         for x in range(0, im.size[0], mark.size[0]):
@@ -61,26 +61,77 @@ def main():
     tpath = os.path.join(map_dir, 'topographical.png')
     ppath = os.path.join(map_dir, 'plains.png')
 
+    fill_color = (255, 0, 0)
+    clear_color = (0,)*4
+
     im = Image.open(tpath)
-    h, w = im.size
-    mask = Image.new("RGB", (h, w), (255, )*3)
-    data = mask.load()
+    idata = im.load()
+    w, h = im.size
+    mdata = []
+    for _ in xrange(h):
+        mdata.append([-1, ]*w)
 
     src = array('H')
     with open(spath, 'r') as f:
         src.fromstring(f.read())
-    src = np.array(src).reshape((w, h))
+    src = np.array(src).reshape((h, w))
 
-    fill_color = (255, 0, 0)
-    i = 1
-    while i < w:
-        j = 1
-        while j < h:
-            if src[i][j] == src[i][j-1] and src[i][j] == src[i-1][j]:
-                data[j, i] = data[j-1,i] = data[j,i-1] = fill_color
-            j += 1
-        i += 1
+    groups = []
+    group_num = 0
 
+    def not_water(x, y):
+        r, g, b = idata[x, y]
+        return False if b > r and b > g else True
+
+    for i in xrange(h):
+        for j in xrange(w):
+            cg = mdata[i][j]
+            if cg >= 0:
+                continue
+            ch = src[i, j]
+
+            group = []
+            if not_water(j, i):
+                group.append((i, j))
+
+            to_fill = []
+            to_fill.append((i-1, j))
+            to_fill.append((i+1, j))
+            to_fill.append((i, j-1))
+            to_fill.append((i, j+1))
+
+            while to_fill:
+                x, y = to_fill.pop(0)
+                if x < 0 or x >= h or y < 0 or y >= w:
+                    continue
+                ag = mdata[x][y]
+                if ag >= 0:
+                    continue
+                ah = src[x, y]
+                if ch == ah:
+                    mdata[x][y] = group_num
+                    if not_water(y, x):
+                        group.append((x, y))
+                    to_fill.append((x-1, y))
+                    to_fill.append((x+1, y))
+                    to_fill.append((x, y-1))
+                    to_fill.append((x, y+1))
+
+            if group:
+                groups.append(group)
+                group_num += 1
+
+    d = [clear_color, ]*h*w
+    # for i in xrange(h):
+    #         d[i*w + 3] = fill_color
+    for g in groups:
+        if len(g) < 50:
+            continue
+        for y, x in g:
+            d[y*w+x] = fill_color
+
+    mask = Image.new("RGBA", (w, h))
+    mask.putdata(d)
     result = add_mask(im, mask, 0.4)
     result.save(ppath)
 

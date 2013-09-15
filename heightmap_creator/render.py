@@ -4,7 +4,6 @@ import optparse
 
 from array import array
 from matplotlib.cm import get_cmap
-from matplotlib.colors import Normalize
 
 import matplotlib.pyplot as plt
 import numpy as np
