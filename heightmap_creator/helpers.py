@@ -15,7 +15,7 @@ class ProgressOutputter(object):
 
     def on_progress(self, count):
         self.done += count
-        sys.stdout.write("{0:.2f}%...\r".format((float(self.done)/self.total)*100))
+        sys.stdout.write("{0:.2%}...\r".format(float(self.done)/self.total))
         sys.stdout.flush()
 
     def on_done(self):
