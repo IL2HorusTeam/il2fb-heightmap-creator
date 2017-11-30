@@ -1,0 +1,8 @@
+version: "3"
+
+services:
+  heightmap-creator-ds:
+    build: .
+    ports:
+      - 5000/tcp
+

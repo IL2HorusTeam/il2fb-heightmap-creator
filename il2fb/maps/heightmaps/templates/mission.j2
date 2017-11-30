@@ -1,0 +1,11 @@
+[MAIN]
+  MAP {{ loader }}
+  TIME 12.0
+  CloudType 0
+  CloudHeight 1000.0
+  army 1
+  playerNum 0
+[NStationary]
+{%- for x, y in points %}
+  {{ loop.index0 }}_Static vehicles.stationary.Stationary$Wagon12 2 {{ x }}.00 {{ y }}.00 360.00 0.0
+{%- endfor %}
