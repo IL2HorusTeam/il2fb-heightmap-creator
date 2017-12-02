@@ -20,17 +20,20 @@ from il2fb.maps.heightmaps.logging import setup_logging
 
 LOG = logging.getLogger(__name__)
 
+ISOHYPSE_COLOR = "#303030"
+ISOHYPSE_WIDTH = 0.2
+
 CMAP_DATA = (
-    (0.27058823529411763, 0.45882352941176469 , 0.70588235294117652),
-    (0.45490196078431372, 0.67843137254901964 , 0.81960784313725488),
-    (0.6705882352941176 , 0.85098039215686272 , 0.9137254901960784 ),
-    (0.8784313725490196 , 0.95294117647058818 , 0.97254901960784312),
-    (1.0                , 1.0                 , 0.74901960784313726),
-    (0.99607843137254903, 0.8784313725490196  , 0.56470588235294117),
-    (0.99215686274509807, 0.68235294117647061 , 0.38039215686274508),
-    (0.95686274509803926, 0.42745098039215684 , 0.2627450980392157 ),
-    (0.84313725490196079, 0.18823529411764706 , 0.15294117647058825),
-    (0.6470588235294118 , 0.0                 , 0.14901960784313725),
+    (0.27058823529411763, 0.45882352941176469, 0.70588235294117652),
+    (0.45490196078431372, 0.67843137254901964, 0.81960784313725488),
+    (0.6705882352941176 , 0.85098039215686272, 0.9137254901960784 ),
+    (0.8784313725490196 , 0.95294117647058818, 0.97254901960784312),
+    (1.0                , 1.0                , 0.74901960784313726),
+    (0.99607843137254903, 0.8784313725490196 , 0.56470588235294117),
+    (0.99215686274509807, 0.68235294117647061, 0.38039215686274508),
+    (0.95686274509803926, 0.42745098039215684, 0.2627450980392157 ),
+    (0.84313725490196079, 0.18823529411764706, 0.15294117647058825),
+    (0.6470588235294118 , 0.0                , 0.14901960784313725),
 )
 CMAP = LinearSegmentedColormap.from_list('il2fb-heights', CMAP_DATA, 256)
 
@@ -75,7 +78,7 @@ def load_args() -> argparse.Namespace:
         dest='isostep',
         type=int,
         default=200,
-        help="Step in meters between isolines. Default: 400",
+        help="Step in meters between isohypses. Default: 200",
     )
     parser.add_argument(
         '-r', '--dpi',
@@ -107,22 +110,24 @@ def render(
     height = height // MAP_SCALE
     width = width // MAP_SCALE
 
-    data = np.array(src).reshape((height, width))
     image_size = (
         (width / dpi),
-        (height / dpi)
+        (height / dpi),
     )
-    isolevels = list(range(0, data.max(), isostep))
+
+    data = np.array(src).reshape((height, width))
+    isohypses = list(range(0, data.max(), isostep))
 
     plt.clf()
-    plt.figure(dpi=300)
+    plt.axis('off')
+    plt.figure(dpi=dpi)
+
     fig = plt.figure(figsize=image_size, frameon=False)
     fig.add_axes([0, 0, 1, 1])
 
     contourf(data, 256, cmap=CMAP)
-    contour(data, isolevels, colors='#303030', linewidths=0.2)
+    contour(data, isohypses, colors=ISOHYPSE_COLOR, linewidths=ISOHYPSE_WIDTH)
 
-    plt.axis('off')
     plt.savefig(str(output_file_path), bbox_inches=0, dpi=dpi)
 
 
