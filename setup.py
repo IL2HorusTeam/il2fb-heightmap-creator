@@ -47,7 +47,7 @@ REQUIREMENTS, DEPENDENCIES = parse_requirements(REQUIREMENTS_FILE_PATH)
 
 
 setup(
-    name="il2fb-ds-airbridge",
+    name="il2fb-heightmap-creator",
     version="1.0.0",
     description=(
         "Distributed creator of height maps for "
