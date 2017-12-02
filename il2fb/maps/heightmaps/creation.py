@@ -68,8 +68,8 @@ def load_args() -> argparse.Namespace:
         '-o', '--out',
         dest='output_file_path',
         type=lambda x: Path(x).resolve(),
-        default="heightmap",
-        help="Output file path. Default: 'heightmap'",
+        default="heightmap.raw",
+        help="Output file path. Default: 'heightmap.raw'",
     )
     parser.add_argument(
         '-s', '--servers',

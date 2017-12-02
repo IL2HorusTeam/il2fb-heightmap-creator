@@ -63,8 +63,8 @@ def load_args() -> argparse.Namespace:
         '-i', '--in',
         dest='input_file_path',
         type=lambda x: Path(x).resolve(),
-        default="heightmap",
-        help="Input file path. Default: 'heightmap'",
+        default="heightmap.raw",
+        help="Input file path. Default: 'heightmap.raw'",
     )
     parser.add_argument(
         '-o', '--out',
