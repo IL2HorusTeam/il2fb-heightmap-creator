@@ -250,6 +250,8 @@ async def process_results_queue(
     )
     LOG.debug(f"output size: {natural_size}")
 
+    processed_points = 0
+
     output_file_path.parent.parent.mkdir(parents=True, exist_ok=True)
 
     with output_file_path.open('wb') as f:
@@ -264,8 +266,13 @@ async def process_results_queue(
             partition, values = data
             start = partition.start * point_size
 
+            processed_points += (partition.end - partition.start) + 1
+            progress = (processed_points / total_points) * 100
+
             LOG.debug(
-                f"gather results for range [{partition.start}:{partition.end}]"
+                f"gather results for range "
+                f"[{partition.start}:{partition.end}], "
+                f"progress: {progress:.2f}%"
             )
 
             f.seek(start)
