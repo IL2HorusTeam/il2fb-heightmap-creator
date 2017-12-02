@@ -250,6 +250,8 @@ async def process_results_queue(
     )
     LOG.debug(f"output size: {natural_size}")
 
+    output_file_path.parent.parent.mkdir(parents=True, exist_ok=True)
+
     with output_file_path.open('wb') as f:
         f.truncate(output_size)
 

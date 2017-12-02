@@ -128,6 +128,7 @@ def render(
     contourf(data, 256, cmap=CMAP)
     contour(data, isohypses, colors=ISOHYPSE_COLOR, linewidths=ISOHYPSE_WIDTH)
 
+    output_file_path.parent.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(str(output_file_path), bbox_inches=0, dpi=dpi)
 
 
