@@ -77,6 +77,10 @@ def load_args() -> argparse.Namespace:
         type=URL,
         nargs='+',
         required=True,
+        help=(
+            "Addesses of root HTTP API endpoints of dedicated servers "
+            "controlled by «il2fb-ds-airbridge»"
+        ),
     )
 
     args = parser.parse_args()
